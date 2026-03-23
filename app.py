@@ -90,10 +90,33 @@ if st.button("Generate Plan"):
     # Clean output
     output = results_df[[
         "Publisher", "Budget", "CPM", "Impressions", "Reach", "Frequency"
+    
     ]]
 
     st.subheader("Plan Output")
     st.dataframe(output)
+    import io
+
+# Create Excel file in memory
+buffer = io.BytesIO()
+
+with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+    output.to_excel(writer, index=False, sheet_name='Plan')
+
+    # Inputs sheet
+    inputs_df = pd.DataFrame({
+        "Parameter": ["Budget", "Objective", "Ages"],
+        "Value": [budget, objective, ", ".join(ages)]
+    })
+    inputs_df.to_excel(writer, index=False, sheet_name='Inputs')
+
+# Download button
+st.download_button(
+    label="Download Plan (Excel)",
+    data=buffer.getvalue(),
+    file_name="CTV_Plan.xlsx",
+    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+)
 
     st.subheader("Total Reach")
     st.metric("Estimated Reach", int(output["Reach"].sum()))

@@ -4,7 +4,7 @@ import numpy as np
 import io
 
 # Load data
-df = pd.read_excel("CTV_Planner_Data_Source_v3.xlsx")
+df = pd.read_excel("CTV_Planner_Data_Source_v5.xlsx")
 
 st.title("CTV Planner")
 
@@ -25,18 +25,22 @@ objective = st.selectbox(
     ["Awareness", "Consideration", "Conversion"]
 )
 
-# Publisher selection
 selected_publishers = st.multiselect(
     "Select Publishers",
     df["Publisher"].tolist(),
     default=df["Publisher"].tolist()
 )
 
-# ✅ NEW: Device selection
 selected_devices = st.multiselect(
     "Select Devices",
     ["CTV", "Desktop", "Mobile"],
     default=["CTV", "Desktop", "Mobile"]
+)
+
+# ✅ NEW: Gender targeting
+target_gender = st.selectbox(
+    "Target Gender",
+    ["All", "Male", "Female"]
 )
 
 # =========================
@@ -79,27 +83,38 @@ if st.button("Generate Plan"):
 
     for _, row in filtered_df.iterrows():
 
-        # Audience match
-        match = sum([row[age] for age in ages])
+        # Audience match (age)
+        age_match = sum([row[age] for age in ages])
 
         base = base_weights[objective].get(row["Publisher"], 0)
 
-        weight = base * match
+        weight = base * age_match
 
-        # ✅ DEVICE FACTOR
+        # =========================
+        # DEVICE FACTOR
+        # =========================
         device_factor = 0
 
         if "CTV" in selected_devices:
             device_factor += row["CTV %"]
-
         if "Desktop" in selected_devices:
             device_factor += row["Desktop %"]
-
         if "Mobile" in selected_devices:
             device_factor += row["Mobile %"]
 
-        # Apply device scaling
         weight = weight * device_factor
+
+        # =========================
+        # GENDER FACTOR (soft weighting)
+        # =========================
+        if target_gender == "Male":
+            gender_factor = row["Male %"]
+        elif target_gender == "Female":
+            gender_factor = row["Female %"]
+        else:
+            gender_factor = 1  # no bias
+
+        weight = weight * gender_factor
 
         results.append({
             "Publisher": row["Publisher"],
@@ -124,7 +139,7 @@ if st.button("Generate Plan"):
     # Impressions
     results_df["Impressions"] = (results_df["Budget"] / results_df["CPM"]) * 1000
 
-    # Reach (scaled by device factor)
+    # Reach (device-adjusted)
     results_df["Reach"] = np.minimum(
         results_df["MAU"] * results_df["Device Factor"],
         results_df["Impressions"] / 2.5
@@ -157,7 +172,7 @@ if st.button("Generate Plan"):
     st.bar_chart(output.set_index("Publisher")["Reach"])
 
     # =========================
-    # EXPORT TO EXCEL
+    # EXPORT
     # =========================
 
     buffer = io.BytesIO()
@@ -166,13 +181,14 @@ if st.button("Generate Plan"):
         output.to_excel(writer, index=False, sheet_name='Plan')
 
         inputs_df = pd.DataFrame({
-            "Parameter": ["Budget", "Objective", "Ages", "Publishers", "Devices"],
+            "Parameter": ["Budget", "Objective", "Ages", "Publishers", "Devices", "Gender"],
             "Value": [
                 budget,
                 objective,
                 ", ".join(ages),
                 ", ".join(selected_publishers),
-                ", ".join(selected_devices)
+                ", ".join(selected_devices),
+                target_gender
             ]
         })
 

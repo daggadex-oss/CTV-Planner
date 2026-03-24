@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import io
 
 # Load data
 df = pd.read_excel("CTV_Planner_Data_Source_v3.xlsx")
@@ -19,6 +20,13 @@ ages = st.multiselect(
 objective = st.selectbox(
     "Campaign Objective",
     ["Awareness", "Consideration", "Conversion"]
+)
+
+# ✅ NEW: Publisher selection
+selected_publishers = st.multiselect(
+    "Select Publishers",
+    df["Publisher"].tolist(),
+    default=df["Publisher"].tolist()
 )
 
 # Base weights
@@ -48,9 +56,12 @@ base_weights = {
 
 if st.button("Generate Plan"):
 
+    # ✅ Filter publishers
+    filtered_df = df[df["Publisher"].isin(selected_publishers)]
+
     results = []
 
-    for _, row in df.iterrows():
+    for _, row in filtered_df.iterrows():
 
         # Audience match score
         match = sum([row[age] for age in ages])
@@ -69,6 +80,11 @@ if st.button("Generate Plan"):
 
     results_df = pd.DataFrame(results)
 
+    # Avoid divide by zero
+    if results_df["Weight"].sum() == 0:
+        st.error("No valid weights. Adjust your selections.")
+        st.stop()
+
     # Normalise weights
     results_df["Weight"] = results_df["Weight"] / results_df["Weight"].sum()
 
@@ -78,7 +94,7 @@ if st.button("Generate Plan"):
     # Impressions
     results_df["Impressions"] = (results_df["Budget"] / results_df["CPM"]) * 1000
 
-    # Reach (simple model)
+    # Reach
     results_df["Reach"] = np.minimum(
         results_df["MAU"],
         results_df["Impressions"] / 2.5
@@ -87,38 +103,45 @@ if st.button("Generate Plan"):
     # Frequency
     results_df["Frequency"] = results_df["Impressions"] / results_df["Reach"]
 
-    # Clean output
+    # Output table
     output = results_df[[
         "Publisher", "Budget", "CPM", "Impressions", "Reach", "Frequency"
-    
     ]]
 
     st.subheader("Plan Output")
-    st.dataframe(output)
-    import io
 
-# Create Excel file in memory
-buffer = io.BytesIO()
+    st.dataframe(
+        output.style.format({
+            "Budget": "R{:,.0f}",
+            "Impressions": "{:,.0f}",
+            "Reach": "{:,.0f}",
+            "Frequency": "{:.2f}"
+        })
+    )
 
-with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-    output.to_excel(writer, index=False, sheet_name='Plan')
-
-    # Inputs sheet
-    inputs_df = pd.DataFrame({
-        "Parameter": ["Budget", "Objective", "Ages"],
-        "Value": [budget, objective, ", ".join(ages)]
-    })
-    inputs_df.to_excel(writer, index=False, sheet_name='Inputs')
-
-# Download button
-st.download_button(
-    label="Download Plan (Excel)",
-    data=buffer.getvalue(),
-    file_name="CTV_Plan.xlsx",
-    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-)
-
+    # Total reach
     st.subheader("Total Reach")
     st.metric("Estimated Reach", int(output["Reach"].sum()))
 
+    # Chart
     st.bar_chart(output.set_index("Publisher")["Reach"])
+
+    # ✅ Excel Export (correctly inside block)
+    buffer = io.BytesIO()
+
+    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+        output.to_excel(writer, index=False, sheet_name='Plan')
+
+        inputs_df = pd.DataFrame({
+            "Parameter": ["Budget", "Objective", "Ages", "Publishers"],
+            "Value": [budget, objective, ", ".join(ages), ", ".join(selected_publishers)]
+        })
+
+        inputs_df.to_excel(writer, index=False, sheet_name='Inputs')
+
+    st.download_button(
+        label="Download Plan (Excel)",
+        data=buffer.getvalue(),
+        file_name="CTV_Plan.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )

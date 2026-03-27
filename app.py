@@ -175,7 +175,7 @@ if generate:
             # AGE MATCH
             # =========================
             age_match = sum([row[age] for age in ages])
-            base = base_weights[objective].get(row["Publisher"], 0)
+            base = base_weights[objective].get(row["Publisher"], 0.1)
             weight = base * age_match
 
             # =========================

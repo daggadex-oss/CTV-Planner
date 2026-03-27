@@ -47,8 +47,8 @@ button {
 # =========================
 # LOAD DATA
 # =========================
-df = pd.read_excel("CTV_Planner_Data_Source_v6.xlsx")
-tier_df = pd.read_excel("CTV_Planner_Data_Source_v6.xlsx", sheet_name="Tier Pricing")
+df = pd.read_excel("CTV_Planner_Data_Source_v8.xlsx")
+tier_df = pd.read_excel("CTV_Planner_Data_Source_v8.xlsx", sheet_name="Tier Pricing")
 
 # =========================
 # HEADER

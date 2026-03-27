@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import io
+import os
 
 # =========================
 # PAGE CONFIG
@@ -9,7 +10,7 @@ import io
 st.set_page_config(layout="wide")
 
 # =========================
-# STYLING (CURATOR UI)
+# STYLING
 # =========================
 st.markdown("""
 <style>
@@ -45,22 +46,25 @@ button {
 """, unsafe_allow_html=True)
 
 # =========================
-# LOAD DATA
+# LOAD DATA (V8)
 # =========================
-df = pd.read_excel("CTV_Planner_Data_Source_v8.xlsx")
-tier_df = pd.read_excel("CTV_Planner_Data_Source_v8.xlsx", sheet_name="Tier Pricing")
+file_path = "CTV_Planner_Data_Source_v8.xlsx"
+
+if not os.path.exists(file_path):
+    st.error("Data file not found. Please upload V8 dataset.")
+    st.stop()
+
+df = pd.read_excel(file_path)
+tier_df = pd.read_excel(file_path, sheet_name="Tier Pricing")
 
 # =========================
 # HEADER
 # =========================
 st.title("Curated CTV Planner")
-
-st.markdown("""
-**More control. Less waste. Greater transparency.**
-""")
+st.markdown("**More control. Less waste. Greater transparency.**")
 
 # =========================
-# INPUT PANEL
+# INPUTS
 # =========================
 with st.container():
     st.markdown('<div class="block">', unsafe_allow_html=True)
@@ -94,13 +98,10 @@ with st.container():
         default=["CTV", "Desktop", "Mobile"]
     )
 
-    # =========================
-    # MULTI-TIER SELECTION
-    # =========================
     selected_tiers = st.multiselect(
         "Curated Packages",
-        ["Premium", "Mid", "Scaled Reach Pool"],
-        default=["Premium"]
+        ["Premium Curated", "Core Curated", "Scaled Pool"],
+        default=["Premium Curated"]
     )
 
     generate = st.button("Generate Plan")
@@ -108,7 +109,7 @@ with st.container():
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =========================
-# WEIGHTS (UNCHANGED)
+# WEIGHTS
 # =========================
 base_weights = {
     "Awareness": {
@@ -135,12 +136,12 @@ base_weights = {
 }
 
 # =========================
-# TIER MAPPING
+# TIER MAPPING (V8 ALIGNED)
 # =========================
 tier_mapping = {
-    "Premium": "Tier_Premium",
-    "Mid": "Tier_Mid",
-    "Scaled Reach Pool": "Tier_Remnant"
+    "Premium Curated": "Tier_Premium",
+    "Core Curated": "Tier_Core",
+    "Scaled Pool": "Tier_Scaled"
 }
 
 # =========================
@@ -154,30 +155,34 @@ if generate:
 
     results = []
 
-    budget_per_tier = budget / len(selected_tiers)
-
-    total_impressions = 0
-    total_reach = 0
-
     for tier in selected_tiers:
 
         tier_col = tier_mapping[tier]
 
         tier_publishers = df[df[tier_col] == 1]
 
-        tier_cpm = tier_df[tier_df["Tier"] == tier]["CPM"].values[0]
+        tier_row = tier_df[tier_df["Tier"] == tier]
+
+        if tier_row.empty:
+            st.error(f"Tier '{tier}' not found in data.")
+            st.stop()
+
+        tier_cpm = tier_row["CPM"].values[0]
 
         for _, row in tier_publishers.iterrows():
 
-            # Age match
+            # =========================
+            # AGE MATCH
+            # =========================
             age_match = sum([row[age] for age in ages])
-
             base = base_weights[objective].get(row["Publisher"], 0)
-
             weight = base * age_match
 
-            # Device factor
+            # =========================
+            # DEVICE FACTOR
+            # =========================
             device_factor = 0
+
             if "CTV" in selected_devices:
                 device_factor += row["CTV %"]
             if "Desktop" in selected_devices:
@@ -187,7 +192,9 @@ if generate:
 
             weight *= device_factor
 
-            # Gender factor
+            # =========================
+            # GENDER FACTOR
+            # =========================
             if target_gender == "Male":
                 weight *= row["Male %"]
             elif target_gender == "Female":
@@ -208,22 +215,20 @@ if generate:
         st.error("No valid weights.")
         st.stop()
 
-    # Normalize weights
+    # =========================
+    # NORMALISE + CALCULATE
+    # =========================
     results_df["Weight"] /= results_df["Weight"].sum()
 
-    # Budget
     results_df["Budget"] = results_df["Weight"] * budget
 
-    # Impressions
     results_df["Impressions"] = (results_df["Budget"] / results_df["CPM"]) * 1000
 
-    # Reach
     results_df["Reach"] = np.minimum(
         results_df["MAU"] * results_df["Device Factor"],
         results_df["Impressions"] / 2.5
     )
 
-    # Frequency
     results_df["Frequency"] = results_df["Impressions"] / results_df["Reach"]
 
     output = results_df[[
@@ -231,7 +236,7 @@ if generate:
     ]]
 
     # =========================
-    # KPI SECTION
+    # KPIs
     # =========================
     col1, col2, col3 = st.columns(3)
 
@@ -246,7 +251,7 @@ if generate:
         st.metric("Blended CPM", f"R{int(blended_cpm)}")
 
     # =========================
-    # TABLE + CHART
+    # OUTPUT
     # =========================
     col1, col2 = st.columns([2,1])
 

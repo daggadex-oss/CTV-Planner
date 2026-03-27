@@ -117,26 +117,29 @@ base_weights = {
         "VIU": 0.25,
         "Reach Africa": 0.2,
         "eVOD": 0.1,
-        "DStv Stream": 0.1
+        "DStv Stream": 0.1,
+        "Scaled Pool": 0.15
     },
     "Consideration": {
         "Reach Africa": 0.3,
         "eVOD": 0.25,
         "SABC+": 0.2,
         "DStv Stream": 0.15,
-        "VIU": 0.1
+        "VIU": 0.1,
+        "Scaled Pool": 0.15
     },
     "Conversion": {
         "DStv Stream": 0.4,
         "Reach Africa": 0.25,
         "eVOD": 0.2,
         "SABC+": 0.1,
-        "VIU": 0.05
+        "VIU": 0.05,
+        "Scaled Pool": 0.15
     }
 }
 
 # =========================
-# TIER MAPPING (V8 ALIGNED)
+# TIER MAPPING
 # =========================
 tier_mapping = {
     "Premium Curated": "Tier_Premium",
@@ -158,7 +161,6 @@ if generate:
     for tier in selected_tiers:
 
         tier_col = tier_mapping[tier]
-
         tier_publishers = df[df[tier_col] == 1]
 
         tier_row = tier_df[tier_df["Tier"] == tier]
@@ -171,18 +173,16 @@ if generate:
 
         for _, row in tier_publishers.iterrows():
 
-            # =========================
             # AGE MATCH
-            # =========================
             age_match = sum([row[age] for age in ages])
+
+            # BASE WEIGHT (safe fallback included)
             base = base_weights[objective].get(row["Publisher"], 0.1)
+
             weight = base * age_match
 
-            # =========================
             # DEVICE FACTOR
-            # =========================
             device_factor = 0
-
             if "CTV" in selected_devices:
                 device_factor += row["CTV %"]
             if "Desktop" in selected_devices:
@@ -192,9 +192,7 @@ if generate:
 
             weight *= device_factor
 
-            # =========================
             # GENDER FACTOR
-            # =========================
             if target_gender == "Male":
                 weight *= row["Male %"]
             elif target_gender == "Female":
@@ -219,21 +217,27 @@ if generate:
     # NORMALISE + CALCULATE
     # =========================
     results_df["Weight"] /= results_df["Weight"].sum()
-
     results_df["Budget"] = results_df["Weight"] * budget
-
     results_df["Impressions"] = (results_df["Budget"] / results_df["CPM"]) * 1000
-
     results_df["Reach"] = np.minimum(
         results_df["MAU"] * results_df["Device Factor"],
         results_df["Impressions"] / 2.5
     )
-
     results_df["Frequency"] = results_df["Impressions"] / results_df["Reach"]
 
-    output = results_df[[
-        "Publisher", "Tier", "Budget", "CPM", "Impressions", "Reach", "Frequency"
-    ]]
+    # =========================
+    # AGGREGATE (FIX DUPLICATES)
+    # =========================
+    aggregated_df = results_df.groupby("Publisher").agg({
+        "Budget": "sum",
+        "Impressions": "sum",
+        "Reach": "sum"
+    }).reset_index()
+
+    aggregated_df["Frequency"] = aggregated_df["Impressions"] / aggregated_df["Reach"]
+    aggregated_df["CPM"] = (aggregated_df["Budget"] / aggregated_df["Impressions"]) * 1000
+
+    output = aggregated_df
 
     # =========================
     # KPIs
@@ -261,12 +265,13 @@ if generate:
                 "Budget": "R{:,.0f}",
                 "Impressions": "{:,.0f}",
                 "Reach": "{:,.0f}",
-                "Frequency": "{:.2f}"
+                "Frequency": "{:.2f}",
+                "CPM": "R{:,.0f}"
             })
         )
 
     with col2:
-        st.bar_chart(output.groupby("Publisher")["Reach"].sum())
+        st.bar_chart(output.set_index("Publisher")["Reach"])
 
     # =========================
     # EXPORT

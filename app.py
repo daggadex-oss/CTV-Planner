@@ -64,6 +64,61 @@ st.title("Curated CTV Planner")
 st.markdown("**More control. Less waste. Greater transparency.**")
 
 # =========================
+# GUIDE (NEW)
+# =========================
+with st.expander("How this planner works"):
+
+    st.markdown("""
+### Quick Start
+1. Enter your **budget**
+2. Select your **campaign objective**
+3. Define your **target audience (age + gender)**
+4. Choose **devices**
+5. Select **curated packages**
+6. Click **Generate Plan**
+
+---
+
+### Curated Packages Explained
+
+- **Premium Curated**  
+  High-quality, fully addressable supply with maximum control
+
+- **Core Curated**  
+  Balanced mix of quality and scale for efficient delivery
+
+- **Scaled Pool**  
+  Cost-efficient reach extension via broader supply
+
+---
+
+### How the Plan is Calculated
+
+The planner balances three key factors:
+
+- **Audience Fit**
+- **Supply Quality**
+- **Inventory Availability**
+
+---
+
+### How to Read the Output
+
+- **Budget** → Allocation of spend  
+- **Reach** → Estimated unique users  
+- **Frequency** → Avg exposures  
+- **Blended CPM** → Overall efficiency  
+
+---
+
+### Planning Playbooks
+
+- Premium only → Quality  
+- Premium + Core → Balanced  
+- Core + Scaled → Efficient reach  
+""")
+
+# =========================
 # INPUTS
 # =========================
 with st.container():
@@ -77,31 +132,36 @@ with st.container():
     with col2:
         objective = st.selectbox(
             "Campaign Objective",
-            ["Awareness", "Consideration", "Conversion"]
+            ["Awareness", "Consideration", "Conversion"],
+            help="Determines how budget is weighted across supply"
         )
 
     with col3:
         target_gender = st.selectbox(
             "Target Gender",
-            ["All", "Male", "Female"]
+            ["All", "Male", "Female"],
+            help="Adjusts delivery weighting based on gender composition"
         )
 
     ages = st.multiselect(
         "Target Age Groups",
         ["18-24", "25-34", "35-44", "45-54", "55+"],
-        default=["25-34"]
+        default=["25-34"],
+        help="Prioritises publishers with strong audience alignment"
     )
 
     selected_devices = st.multiselect(
         "Devices",
         ["CTV", "Desktop", "Mobile"],
-        default=["CTV", "Desktop", "Mobile"]
+        default=["CTV", "Desktop", "Mobile"],
+        help="Controls delivery environments"
     )
 
     selected_tiers = st.multiselect(
         "Curated Packages",
         ["Premium Curated", "Core Curated", "Scaled Pool"],
-        default=["Premium Curated"]
+        default=["Premium Curated"],
+        help="Combine tiers to balance quality, scale, and efficiency"
     )
 
     generate = st.button("Generate Plan")
@@ -173,15 +233,10 @@ if generate:
 
         for _, row in tier_publishers.iterrows():
 
-            # AGE MATCH
             age_match = sum([row[age] for age in ages])
-
-            # BASE WEIGHT (safe fallback included)
             base = base_weights[objective].get(row["Publisher"], 0.1)
-
             weight = base * age_match
 
-            # DEVICE FACTOR
             device_factor = 0
             if "CTV" in selected_devices:
                 device_factor += row["CTV %"]
@@ -192,7 +247,6 @@ if generate:
 
             weight *= device_factor
 
-            # GENDER FACTOR
             if target_gender == "Male":
                 weight *= row["Male %"]
             elif target_gender == "Female":
@@ -214,7 +268,7 @@ if generate:
         st.stop()
 
     # =========================
-    # NORMALISE + CALCULATE
+    # CALCULATIONS
     # =========================
     results_df["Weight"] /= results_df["Weight"].sum()
     results_df["Budget"] = results_df["Weight"] * budget
@@ -226,7 +280,7 @@ if generate:
     results_df["Frequency"] = results_df["Impressions"] / results_df["Reach"]
 
     # =========================
-    # AGGREGATE (FIX DUPLICATES)
+    # AGGREGATE (NO DUPES)
     # =========================
     aggregated_df = results_df.groupby("Publisher").agg({
         "Budget": "sum",
@@ -269,6 +323,16 @@ if generate:
                 "CPM": "R{:,.0f}"
             })
         )
+
+        st.markdown("""
+### How to interpret this plan
+
+- Higher **Reach** = more unique users  
+- Higher **Frequency** = more repeated exposure  
+- Lower **CPM** = more efficient spend  
+
+Balance tiers to optimise quality, scale, and efficiency.
+""")
 
     with col2:
         st.bar_chart(output.set_index("Publisher")["Reach"])

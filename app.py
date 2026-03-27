@@ -9,32 +9,19 @@ import io
 st.set_page_config(layout="wide")
 
 # =========================
-# CUSTOM STYLING (CURATOR THEME)
+# STYLING (CURATOR UI)
 # =========================
 st.markdown("""
 <style>
-
-body {
-    font-family: 'Montserrat', sans-serif;
-}
-
-/* Background */
 .stApp {
     background-color: #1A1A1A;
     color: white;
 }
 
-/* Headings */
 h1 {
     color: #2F5BFF;
-    font-weight: 700;
 }
 
-h2, h3 {
-    color: #FFFFFF;
-}
-
-/* Metric cards */
 div[data-testid="stMetric"] {
     background: linear-gradient(135deg, #2F5BFF, #6C8CFF);
     padding: 15px;
@@ -42,43 +29,34 @@ div[data-testid="stMetric"] {
     color: white;
 }
 
-/* Buttons */
 button {
     background-color: #FFC700 !important;
     color: black !important;
     border-radius: 8px !important;
 }
 
-/* Dataframe */
-.css-1d391kg {
-    background-color: #1A1A1A;
-}
-
-/* Section blocks */
 .block {
     background-color: #262626;
     padding: 20px;
     border-radius: 12px;
     margin-bottom: 20px;
 }
-
 </style>
 """, unsafe_allow_html=True)
 
 # =========================
 # LOAD DATA
 # =========================
-df = pd.read_excel("CTV_Planner_Data_Source_v5.xlsx")
+df = pd.read_excel("CTV_Planner_Data_Source_v6.xlsx")
+tier_df = pd.read_excel("CTV_Planner_Data_Source_v6.xlsx", sheet_name="Tier Pricing")
 
 # =========================
-# HERO SECTION
+# HEADER
 # =========================
 st.title("Curated CTV Planner")
 
 st.markdown("""
-**More control. Less waste. Greater transparency.**  
-
-A unified CTV planning environment designed to optimise reach, efficiency, and supply quality.
+**More control. Less waste. Greater transparency.**
 """)
 
 # =========================
@@ -110,16 +88,19 @@ with st.container():
         default=["25-34"]
     )
 
-    selected_publishers = st.multiselect(
-        "Publishers",
-        df["Publisher"].tolist(),
-        default=df["Publisher"].tolist()
-    )
-
     selected_devices = st.multiselect(
         "Devices",
         ["CTV", "Desktop", "Mobile"],
         default=["CTV", "Desktop", "Mobile"]
+    )
+
+    # =========================
+    # MULTI-TIER SELECTION
+    # =========================
+    selected_tiers = st.multiselect(
+        "Curated Packages",
+        ["Premium", "Mid", "Scaled Reach Pool"],
+        default=["Premium"]
     )
 
     generate = st.button("Generate Plan")
@@ -127,7 +108,7 @@ with st.container():
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =========================
-# WEIGHTS
+# WEIGHTS (UNCHANGED)
 # =========================
 base_weights = {
     "Awareness": {
@@ -154,44 +135,72 @@ base_weights = {
 }
 
 # =========================
-# OUTPUT
+# TIER MAPPING
+# =========================
+tier_mapping = {
+    "Premium": "Tier_Premium",
+    "Mid": "Tier_Mid",
+    "Scaled Reach Pool": "Tier_Remnant"
+}
+
+# =========================
+# GENERATE PLAN
 # =========================
 if generate:
 
-    filtered_df = df[df["Publisher"].isin(selected_publishers)]
+    if len(selected_tiers) == 0:
+        st.error("Please select at least one package.")
+        st.stop()
 
     results = []
 
-    for _, row in filtered_df.iterrows():
+    budget_per_tier = budget / len(selected_tiers)
 
-        age_match = sum([row[age] for age in ages])
-        base = base_weights[objective].get(row["Publisher"], 0)
-        weight = base * age_match
+    total_impressions = 0
+    total_reach = 0
 
-        # Device factor
-        device_factor = 0
-        if "CTV" in selected_devices:
-            device_factor += row["CTV %"]
-        if "Desktop" in selected_devices:
-            device_factor += row["Desktop %"]
-        if "Mobile" in selected_devices:
-            device_factor += row["Mobile %"]
+    for tier in selected_tiers:
 
-        weight *= device_factor
+        tier_col = tier_mapping[tier]
 
-        # Gender factor
-        if target_gender == "Male":
-            weight *= row["Male %"]
-        elif target_gender == "Female":
-            weight *= row["Female %"]
+        tier_publishers = df[df[tier_col] == 1]
 
-        results.append({
-            "Publisher": row["Publisher"],
-            "Weight": weight,
-            "CPM": row["CPM"],
-            "MAU": row["MAU"],
-            "Device Factor": device_factor
-        })
+        tier_cpm = tier_df[tier_df["Tier"] == tier]["CPM"].values[0]
+
+        for _, row in tier_publishers.iterrows():
+
+            # Age match
+            age_match = sum([row[age] for age in ages])
+
+            base = base_weights[objective].get(row["Publisher"], 0)
+
+            weight = base * age_match
+
+            # Device factor
+            device_factor = 0
+            if "CTV" in selected_devices:
+                device_factor += row["CTV %"]
+            if "Desktop" in selected_devices:
+                device_factor += row["Desktop %"]
+            if "Mobile" in selected_devices:
+                device_factor += row["Mobile %"]
+
+            weight *= device_factor
+
+            # Gender factor
+            if target_gender == "Male":
+                weight *= row["Male %"]
+            elif target_gender == "Female":
+                weight *= row["Female %"]
+
+            results.append({
+                "Publisher": row["Publisher"],
+                "Tier": tier,
+                "Weight": weight,
+                "CPM": tier_cpm,
+                "MAU": row["MAU"],
+                "Device Factor": device_factor
+            })
 
     results_df = pd.DataFrame(results)
 
@@ -199,20 +208,26 @@ if generate:
         st.error("No valid weights.")
         st.stop()
 
+    # Normalize weights
     results_df["Weight"] /= results_df["Weight"].sum()
 
+    # Budget
     results_df["Budget"] = results_df["Weight"] * budget
+
+    # Impressions
     results_df["Impressions"] = (results_df["Budget"] / results_df["CPM"]) * 1000
 
+    # Reach
     results_df["Reach"] = np.minimum(
         results_df["MAU"] * results_df["Device Factor"],
         results_df["Impressions"] / 2.5
     )
 
+    # Frequency
     results_df["Frequency"] = results_df["Impressions"] / results_df["Reach"]
 
     output = results_df[[
-        "Publisher", "Budget", "CPM", "Impressions", "Reach", "Frequency"
+        "Publisher", "Tier", "Budget", "CPM", "Impressions", "Reach", "Frequency"
     ]]
 
     # =========================
@@ -227,7 +242,8 @@ if generate:
         st.metric("Total Impressions", f"{int(output['Impressions'].sum()):,}")
 
     with col3:
-        st.metric("Avg Frequency", f"{output['Frequency'].mean():.2f}")
+        blended_cpm = (output["Budget"].sum() / output["Impressions"].sum()) * 1000
+        st.metric("Blended CPM", f"R{int(blended_cpm)}")
 
     # =========================
     # TABLE + CHART
@@ -245,7 +261,7 @@ if generate:
         )
 
     with col2:
-        st.bar_chart(output.set_index("Publisher")["Reach"])
+        st.bar_chart(output.groupby("Publisher")["Reach"].sum())
 
     # =========================
     # EXPORT

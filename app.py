@@ -421,6 +421,10 @@ if generate:
         st.error("Select at least one curated package.")
         st.stop()
 
+    if len(ages) == 0:
+        st.error("Select at least one age group.")
+        st.stop()
+
     results = []
 
     for tier in selected_tiers:
@@ -468,7 +472,8 @@ if generate:
 
     results_df = pd.DataFrame(results)
 
-    if results_df["Weight"].sum() == 0:
+    total_weight = results_df["Weight"].sum()
+    if total_weight == 0 or pd.isna(total_weight):
         st.error("No valid weights for the selected inputs.")
         st.stop()
 
@@ -478,10 +483,14 @@ if generate:
     results_df["Weight"] /= results_df["Weight"].sum()
     results_df["Budget"] = results_df["Weight"] * budget
     results_df["Impressions"] = (results_df["Budget"] / results_df["CPM"]) * 1000
-    reach_cap = results_df["MAU"] * results_df["Device Factor"]
-    reach_imp = results_df["Impressions"] / 2.5
-    results_df["Reach"] = pd.concat([reach_cap, reach_imp], axis=1).min(axis=1)
-    results_df["Frequency"] = results_df["Impressions"] / results_df["Reach"].replace(0, float("nan"))
+    results_df["Reach"] = results_df.apply(
+        lambda r: min(r["MAU"] * r["Device Factor"], r["Impressions"] / 2.5),
+        axis=1
+    )
+    results_df["Frequency"] = results_df.apply(
+        lambda r: r["Impressions"] / r["Reach"] if r["Reach"] > 0 else float("nan"),
+        axis=1
+    )
 
     # =========================
     # AGGREGATE (NO DUPES)
@@ -492,7 +501,10 @@ if generate:
         "Reach": "sum"
     }).reset_index()
 
-    aggregated_df["Frequency"] = aggregated_df["Impressions"] / aggregated_df["Reach"].replace(0, float("nan"))
+    aggregated_df["Frequency"] = aggregated_df.apply(
+        lambda r: r["Impressions"] / r["Reach"] if r["Reach"] > 0 else float("nan"),
+        axis=1
+    )
     aggregated_df["CPM"] = (aggregated_df["Budget"] / aggregated_df["Impressions"]) * 1000
 
     output = aggregated_df

@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import io
 import os
 
@@ -479,11 +478,10 @@ if generate:
     results_df["Weight"] /= results_df["Weight"].sum()
     results_df["Budget"] = results_df["Weight"] * budget
     results_df["Impressions"] = (results_df["Budget"] / results_df["CPM"]) * 1000
-    results_df["Reach"] = np.minimum(
-        results_df["MAU"] * results_df["Device Factor"],
-        results_df["Impressions"] / 2.5
-    )
-    results_df["Frequency"] = results_df["Impressions"] / results_df["Reach"].replace(0, np.nan)
+    reach_cap = results_df["MAU"] * results_df["Device Factor"]
+    reach_imp = results_df["Impressions"] / 2.5
+    results_df["Reach"] = pd.concat([reach_cap, reach_imp], axis=1).min(axis=1)
+    results_df["Frequency"] = results_df["Impressions"] / results_df["Reach"].replace(0, float("nan"))
 
     # =========================
     # AGGREGATE (NO DUPES)
@@ -494,7 +492,7 @@ if generate:
         "Reach": "sum"
     }).reset_index()
 
-    aggregated_df["Frequency"] = aggregated_df["Impressions"] / aggregated_df["Reach"].replace(0, np.nan)
+    aggregated_df["Frequency"] = aggregated_df["Impressions"] / aggregated_df["Reach"].replace(0, float("nan"))
     aggregated_df["CPM"] = (aggregated_df["Budget"] / aggregated_df["Impressions"]) * 1000
 
     output = aggregated_df

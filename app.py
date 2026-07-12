@@ -219,6 +219,25 @@ div[data-testid="stWidgetLabel"] p {
     caret-color: #e8e8e8 !important;
 }
 
+/* === Dropdown popover (open list) — dark background === */
+[data-baseweb="popover"],
+[data-baseweb="popover"] > div,
+[data-baseweb="popover"] ul {
+    background-color: #1a1a1a !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    border-radius: 8px !important;
+}
+
+[data-baseweb="popover"] li[role="option"] {
+    background-color: transparent !important;
+    color: #e8e8e8 !important;
+}
+
+[data-baseweb="popover"] li[role="option"]:hover,
+[data-baseweb="popover"] li[aria-selected="true"] {
+    background-color: rgba(255, 255, 255, 0.06) !important;
+}
+
 /* === Bar chart container === */
 .stVegaLiteChart {
     background-color: var(--surface) !important;

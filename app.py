@@ -7,43 +7,233 @@ import os
 # =========================
 # PAGE CONFIG
 # =========================
-st.set_page_config(layout="wide")
+st.set_page_config(
+    layout="wide",
+    page_title="CTV Planner — CTV OS™",
+    page_icon="📺",
+)
 
 # =========================
-# STYLING
+# STYLING — Tactical Telemetry (aligned with CTV OS™)
 # =========================
 st.markdown("""
 <style>
+/* === Base === */
+:root {
+    --bg:        #111111;
+    --surface:   #1a1a1a;
+    --surface-2: #1e1e1e;
+    --border:    rgba(255, 255, 255, 0.08);
+    --fg:        #e8e8e8;
+    --muted:     #888888;
+    --accent:    #ffc700;
+    --blue:      #2f5bff;
+    --mono:      'JetBrains Mono', 'SF Mono', 'Cascadia Code', ui-monospace, monospace;
+    --sans:      'SF Pro Display', system-ui, -apple-system, 'Segoe UI', 'Helvetica Neue', sans-serif;
+}
+
 .stApp {
-    background-color: #1A1A1A;
-    color: white;
+    background-color: var(--bg);
+    color: var(--fg);
+    font-family: var(--sans);
+    -webkit-font-smoothing: antialiased;
 }
 
+/* === Typography === */
 h1 {
-    color: #2F5BFF;
+    font-family: var(--sans) !important;
+    font-size: clamp(1.6rem, 3vw, 2.4rem) !important;
+    font-weight: 600 !important;
+    letter-spacing: -0.02em !important;
+    color: var(--fg) !important;
+    margin-bottom: 0.25rem !important;
 }
 
+h2, h3 {
+    font-family: var(--sans) !important;
+    font-weight: 600 !important;
+    letter-spacing: -0.015em !important;
+    color: var(--fg) !important;
+}
+
+p, li, .stMarkdown p {
+    color: var(--fg) !important;
+    font-family: var(--sans) !important;
+}
+
+/* === Metric cards — flat surface, no gradient === */
 div[data-testid="stMetric"] {
-    background: linear-gradient(135deg, #2F5BFF, #6C8CFF);
-    padding: 15px;
-    border-radius: 12px;
-    color: white;
+    background-color: var(--surface) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 10px !important;
+    padding: 18px 20px !important;
 }
 
-button {
-    background-color: #FFC700 !important;
-    color: black !important;
+div[data-testid="stMetricLabel"] > div {
+    font-family: var(--sans) !important;
+    font-size: 10px !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.15em !important;
+    color: var(--muted) !important;
+    font-weight: 500 !important;
+}
+
+div[data-testid="stMetricValue"] > div {
+    font-family: var(--mono) !important;
+    font-size: 1.75rem !important;
+    font-weight: 500 !important;
+    color: var(--fg) !important;
+    font-variant-numeric: tabular-nums !important;
+}
+
+/* === Buttons === */
+.stButton > button {
+    background-color: var(--accent) !important;
+    color: #111111 !important;
+    border: none !important;
+    border-radius: 6px !important;
+    font-family: var(--sans) !important;
+    font-weight: 600 !important;
+    font-size: 0.85rem !important;
+    padding: 0.55rem 1.25rem !important;
+    transition: opacity 0.15s ease !important;
+}
+
+.stButton > button:hover {
+    opacity: 0.9 !important;
+}
+
+.stButton > button:active {
+    transform: scale(0.98) !important;
+}
+
+/* Download button — secondary style */
+.stDownloadButton > button {
+    background-color: transparent !important;
+    color: var(--fg) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 6px !important;
+    font-family: var(--sans) !important;
+    font-size: 0.85rem !important;
+}
+
+.stDownloadButton > button:hover {
+    border-color: rgba(255,255,255,0.2) !important;
+    background-color: rgba(255,255,255,0.04) !important;
+}
+
+/* === Inputs === */
+.stNumberInput input,
+.stTextInput input {
+    background-color: var(--surface) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 6px !important;
+    color: var(--fg) !important;
+    font-family: var(--mono) !important;
+    font-size: 0.875rem !important;
+}
+
+.stSelectbox > div > div,
+.stMultiSelect > div > div {
+    background-color: var(--surface) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 6px !important;
+    color: var(--fg) !important;
+}
+
+/* === Expander === */
+div[data-testid="stExpander"] {
+    background-color: var(--surface) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 10px !important;
+}
+
+div[data-testid="stExpander"] summary {
+    color: var(--fg) !important;
+    font-family: var(--sans) !important;
+    font-size: 0.875rem !important;
+}
+
+/* === Dataframe === */
+.stDataFrame {
+    border: 1px solid var(--border) !important;
     border-radius: 8px !important;
+    overflow: hidden !important;
 }
 
+.stDataFrame table {
+    font-family: var(--mono) !important;
+    font-size: 0.8rem !important;
+    font-variant-numeric: tabular-nums !important;
+}
+
+/* === Input block container === */
 .block {
-    background-color: #262626;
-    padding: 20px;
-    border-radius: 12px;
+    background-color: var(--surface);
+    border: 1px solid var(--border);
+    padding: 24px;
+    border-radius: 10px;
     margin-bottom: 20px;
+}
+
+/* === Widget labels — uppercase tracking === */
+div[data-testid="stWidgetLabel"] > label,
+div[data-testid="stWidgetLabel"] p {
+    font-family: var(--sans) !important;
+    font-size: 10px !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.12em !important;
+    color: var(--muted) !important;
+    font-weight: 500 !important;
+}
+
+/* === Multiselect tag chips === */
+span[data-baseweb="tag"] {
+    background-color: rgba(47, 91, 255, 0.15) !important;
+    border: 1px solid rgba(47, 91, 255, 0.3) !important;
+    color: var(--fg) !important;
+    border-radius: 4px !important;
+    font-size: 0.75rem !important;
+    font-family: var(--sans) !important;
+}
+
+/* === Bar chart container === */
+.stVegaLiteChart {
+    background-color: var(--surface) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 10px !important;
+    padding: 16px !important;
+}
+
+/* === Alert / error messages === */
+div[data-testid="stAlert"] {
+    border-radius: 8px !important;
+    font-family: var(--sans) !important;
+    font-size: 0.875rem !important;
+}
+
+/* === Horizontal rule === */
+hr {
+    border-color: var(--border) !important;
 }
 </style>
 """, unsafe_allow_html=True)
+
+# =========================
+# HEADER
+# =========================
+st.markdown(
+    '<p style="font-family:\'SF Pro Display\',system-ui,sans-serif;font-size:10px;'
+    'text-transform:uppercase;letter-spacing:0.18em;color:#888888;margin-bottom:6px;">'
+    'CTV OS™ &nbsp;·&nbsp; Media Planning</p>',
+    unsafe_allow_html=True,
+)
+st.title("CTV Planner")
+st.markdown(
+    '<p style="color:#888888;font-size:0.875rem;margin-top:-8px;margin-bottom:0;">'
+    'More control. Less waste. Greater transparency.</p>',
+    unsafe_allow_html=True,
+)
 
 # =========================
 # LOAD DATA (V8)
@@ -58,13 +248,7 @@ df = pd.read_excel(file_path)
 tier_df = pd.read_excel(file_path, sheet_name="Tier Pricing")
 
 # =========================
-# HEADER
-# =========================
-st.title("Curated CTV Planner")
-st.markdown("**More control. Less waste. Greater transparency.**")
-
-# =========================
-# GUIDE (NEW)
+# GUIDE
 # =========================
 with st.expander("How this planner works"):
 
@@ -81,41 +265,32 @@ with st.expander("How this planner works"):
 
 ### Curated Packages Explained
 
-- **Premium Curated**  
-  High-quality, fully addressable supply with maximum control
-
-- **Core Curated**  
-  Balanced mix of quality and scale for efficient delivery
-
-- **Scaled Pool**  
-  Cost-efficient reach extension via broader supply
+- **Premium Curated** — High-quality, fully addressable supply with maximum control
+- **Core Curated** — Balanced mix of quality and scale for efficient delivery
+- **Scaled Pool** — Cost-efficient reach extension via broader supply
 
 ---
 
 ### How the Plan is Calculated
 
-The planner balances three key factors:
-
-- **Audience Fit**
-- **Supply Quality**
-- **Inventory Availability**
+The planner balances three key factors: **Audience Fit**, **Supply Quality**, and **Inventory Availability**.
 
 ---
 
 ### How to Read the Output
 
-- **Budget** → Allocation of spend  
-- **Reach** → Estimated unique users  
-- **Frequency** → Avg exposures  
-- **Blended CPM** → Overall efficiency  
+- **Budget** → Allocation of spend
+- **Reach** → Estimated unique users
+- **Frequency** → Average exposures
+- **Blended CPM** → Overall efficiency
 
 ---
 
 ### Planning Playbooks
 
-- Premium only → Quality  
-- Premium + Core → Balanced  
-- Core + Scaled → Efficient reach  
+- Premium only → Quality
+- Premium + Core → Balanced
+- Core + Scaled → Efficient reach
 """)
 
 # =========================
@@ -213,7 +388,7 @@ tier_mapping = {
 if generate:
 
     if len(selected_tiers) == 0:
-        st.error("Please select at least one package.")
+        st.error("Select at least one curated package.")
         st.stop()
 
     results = []
@@ -264,7 +439,7 @@ if generate:
     results_df = pd.DataFrame(results)
 
     if results_df["Weight"].sum() == 0:
-        st.error("No valid weights.")
+        st.error("No valid weights for the selected inputs.")
         st.stop()
 
     # =========================
@@ -296,6 +471,8 @@ if generate:
     # =========================
     # KPIs
     # =========================
+    st.markdown("<hr>", unsafe_allow_html=True)
+
     col1, col2, col3 = st.columns(3)
 
     with col1:
@@ -306,12 +483,12 @@ if generate:
 
     with col3:
         blended_cpm = (output["Budget"].sum() / output["Impressions"].sum()) * 1000
-        st.metric("Blended CPM", f"R{int(blended_cpm)}")
+        st.metric("Blended CPM", f"R{blended_cpm:,.0f}")
 
     # =========================
     # OUTPUT
     # =========================
-    col1, col2 = st.columns([2,1])
+    col1, col2 = st.columns([2, 1])
 
     with col1:
         st.dataframe(
@@ -321,15 +498,14 @@ if generate:
                 "Reach": "{:,.0f}",
                 "Frequency": "{:.2f}",
                 "CPM": "R{:,.0f}"
-            })
+            }),
+            use_container_width=True,
         )
 
         st.markdown("""
-### How to interpret this plan
+**How to read this plan**
 
-- Higher **Reach** = more unique users  
-- Higher **Frequency** = more repeated exposure  
-- Lower **CPM** = more efficient spend  
+Higher **Reach** = more unique users · Higher **Frequency** = more repeated exposure · Lower **CPM** = more efficient spend
 
 Balance tiers to optimise quality, scale, and efficiency.
 """)

@@ -262,12 +262,21 @@ st.markdown(
 # =========================
 file_path = "CTV_Planner_Data_Source_v8.xlsx"
 
+@st.cache_data
+def load_data(path):
+    publishers = pd.read_excel(path)
+    tiers = pd.read_excel(path, sheet_name="Tier Pricing")
+    return publishers, tiers
+
 if not os.path.exists(file_path):
-    st.error("Data file not found. Please upload V8 dataset.")
+    st.error("Data file not found. Please ensure CTV_Planner_Data_Source_v8.xlsx is in the repo.")
     st.stop()
 
-df = pd.read_excel(file_path)
-tier_df = pd.read_excel(file_path, sheet_name="Tier Pricing")
+try:
+    df, tier_df = load_data(file_path)
+except Exception as e:
+    st.error(f"Failed to load data: {e}")
+    st.stop()
 
 # =========================
 # GUIDE
@@ -474,7 +483,7 @@ if generate:
         results_df["MAU"] * results_df["Device Factor"],
         results_df["Impressions"] / 2.5
     )
-    results_df["Frequency"] = results_df["Impressions"] / results_df["Reach"]
+    results_df["Frequency"] = results_df["Impressions"] / results_df["Reach"].replace(0, np.nan)
 
     # =========================
     # AGGREGATE (NO DUPES)
@@ -485,7 +494,7 @@ if generate:
         "Reach": "sum"
     }).reset_index()
 
-    aggregated_df["Frequency"] = aggregated_df["Impressions"] / aggregated_df["Reach"]
+    aggregated_df["Frequency"] = aggregated_df["Impressions"] / aggregated_df["Reach"].replace(0, np.nan)
     aggregated_df["CPM"] = (aggregated_df["Budget"] / aggregated_df["Impressions"]) * 1000
 
     output = aggregated_df

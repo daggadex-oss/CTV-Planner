@@ -187,14 +187,36 @@ div[data-testid="stWidgetLabel"] p {
     font-weight: 500 !important;
 }
 
+/* === Multiselect — beat Streamlit emotion cache with higher specificity === */
+.stApp [data-testid="stMultiSelect"] [data-baseweb="select"],
+.stApp [data-testid="stMultiSelect"] [data-baseweb="select"] > div,
+.stApp [data-testid="stMultiSelect"] [data-baseweb="select"] > div > div {
+    background-color: #1a1a1a !important;
+    border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
 /* === Multiselect tag chips === */
-span[data-baseweb="tag"] {
-    background-color: rgba(47, 91, 255, 0.15) !important;
-    border: 1px solid rgba(47, 91, 255, 0.3) !important;
-    color: var(--fg) !important;
+.stApp [data-testid="stMultiSelect"] span[data-baseweb="tag"] {
+    background-color: rgba(47, 91, 255, 0.25) !important;
+    border: 1px solid rgba(47, 91, 255, 0.5) !important;
     border-radius: 4px !important;
     font-size: 0.75rem !important;
     font-family: var(--sans) !important;
+}
+
+.stApp [data-testid="stMultiSelect"] span[data-baseweb="tag"] span {
+    color: #e8e8e8 !important;
+}
+
+.stApp [data-testid="stMultiSelect"] span[data-baseweb="tag"] svg {
+    fill: #888888 !important;
+}
+
+/* === Multiselect input text === */
+.stApp [data-testid="stMultiSelect"] input {
+    color: #e8e8e8 !important;
+    background-color: transparent !important;
+    caret-color: #e8e8e8 !important;
 }
 
 /* === Bar chart container === */

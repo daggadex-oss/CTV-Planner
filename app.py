@@ -265,14 +265,25 @@ file_path = "CTV_Planner_Data_Source_v8.xlsx"
 def load_data(path):
     publishers = pd.read_excel(path)
     tiers = pd.read_excel(path, sheet_name="Tier Pricing")
-    return publishers, tiers
+    # Convert to plain Python structures so generate block has zero numpy calls
+    pub_records = [
+        {str(k): (float(v) if isinstance(v, (int, float)) else str(v))
+         for k, v in row.items()}
+        for row in publishers.to_dict(orient="records")
+    ]
+    tier_records = [
+        {str(k): (float(v) if isinstance(v, (int, float)) else str(v))
+         for k, v in row.items()}
+        for row in tiers.to_dict(orient="records")
+    ]
+    return pub_records, tier_records
 
 if not os.path.exists(file_path):
     st.error("Data file not found. Please ensure CTV_Planner_Data_Source_v8.xlsx is in the repo.")
     st.stop()
 
 try:
-    df, tier_df = load_data(file_path)
+    pub_records, tier_records = load_data(file_path)
 except Exception as e:
     st.error(f"Failed to load data: {e}")
     st.stop()
@@ -425,49 +436,53 @@ if generate:
         st.error("Select at least one age group.")
         st.stop()
 
-    # Pure-Python computation — avoid all numpy C extension calls
+    # Zero numpy calls — everything is plain Python dicts/lists
     rows = []
 
     for tier in selected_tiers:
 
         tier_col = tier_mapping[tier]
-        tier_publishers = df[df[tier_col] == 1]
 
-        tier_row = tier_df[tier_df["Tier"] == tier]
-
-        if tier_row.empty:
+        # Find tier CPM from pure Python list
+        tier_cpm = None
+        for t in tier_records:
+            if t.get("Tier") == tier:
+                tier_cpm = float(t["CPM"])
+                break
+        if tier_cpm is None:
             st.error(f"Tier '{tier}' not found in data.")
             st.stop()
 
-        tier_cpm = float(tier_row["CPM"].values[0])
+        # Filter publishers for this tier from pure Python list
+        for pub in pub_records:
+            if pub.get(tier_col, 0) != 1.0:
+                continue
 
-        for _, row in tier_publishers.iterrows():
-
-            age_match = sum(float(row[age]) for age in ages)
-            base = base_weights[objective].get(str(row["Publisher"]), 0.1)
+            age_match = sum(pub.get(age, 0.0) for age in ages)
+            base = base_weights[objective].get(pub.get("Publisher", ""), 0.1)
             weight = base * age_match
 
             device_factor = 0.0
             if "CTV" in selected_devices:
-                device_factor += float(row["CTV %"])
+                device_factor += pub.get("CTV %", 0.0)
             if "Desktop" in selected_devices:
-                device_factor += float(row["Desktop %"])
+                device_factor += pub.get("Desktop %", 0.0)
             if "Mobile" in selected_devices:
-                device_factor += float(row["Mobile %"])
+                device_factor += pub.get("Mobile %", 0.0)
 
             weight *= device_factor
 
             if target_gender == "Male":
-                weight *= float(row["Male %"])
+                weight *= pub.get("Male %", 1.0)
             elif target_gender == "Female":
-                weight *= float(row["Female %"])
+                weight *= pub.get("Female %", 1.0)
 
             rows.append({
-                "Publisher": str(row["Publisher"]),
+                "Publisher": pub.get("Publisher", "Unknown"),
                 "Tier": tier,
                 "Weight": weight,
                 "CPM": tier_cpm,
-                "MAU": float(row["MAU"]),
+                "MAU": pub.get("MAU", 0.0),
                 "Device Factor": device_factor,
             })
 

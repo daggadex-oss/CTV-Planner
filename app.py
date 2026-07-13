@@ -425,7 +425,8 @@ if generate:
         st.error("Select at least one age group.")
         st.stop()
 
-    results = []
+    # Pure-Python computation — avoid all numpy C extension calls
+    rows = []
 
     for tier in selected_tiers:
 
@@ -438,76 +439,83 @@ if generate:
             st.error(f"Tier '{tier}' not found in data.")
             st.stop()
 
-        tier_cpm = tier_row["CPM"].values[0]
+        tier_cpm = float(tier_row["CPM"].values[0])
 
         for _, row in tier_publishers.iterrows():
 
-            age_match = sum([row[age] for age in ages])
-            base = base_weights[objective].get(row["Publisher"], 0.1)
+            age_match = sum(float(row[age]) for age in ages)
+            base = base_weights[objective].get(str(row["Publisher"]), 0.1)
             weight = base * age_match
 
-            device_factor = 0
+            device_factor = 0.0
             if "CTV" in selected_devices:
-                device_factor += row["CTV %"]
+                device_factor += float(row["CTV %"])
             if "Desktop" in selected_devices:
-                device_factor += row["Desktop %"]
+                device_factor += float(row["Desktop %"])
             if "Mobile" in selected_devices:
-                device_factor += row["Mobile %"]
+                device_factor += float(row["Mobile %"])
 
             weight *= device_factor
 
             if target_gender == "Male":
-                weight *= row["Male %"]
+                weight *= float(row["Male %"])
             elif target_gender == "Female":
-                weight *= row["Female %"]
+                weight *= float(row["Female %"])
 
-            results.append({
-                "Publisher": row["Publisher"],
+            rows.append({
+                "Publisher": str(row["Publisher"]),
                 "Tier": tier,
                 "Weight": weight,
                 "CPM": tier_cpm,
-                "MAU": row["MAU"],
-                "Device Factor": device_factor
+                "MAU": float(row["MAU"]),
+                "Device Factor": device_factor,
             })
 
-    results_df = pd.DataFrame(results)
-
-    total_weight = results_df["Weight"].sum()
-    if total_weight == 0 or pd.isna(total_weight):
+    total_weight = sum(r["Weight"] for r in rows)
+    if total_weight == 0 or total_weight != total_weight:  # second check catches nan
         st.error("No valid weights for the selected inputs.")
         st.stop()
 
-    # =========================
-    # CALCULATIONS
-    # =========================
-    results_df["Weight"] /= results_df["Weight"].sum()
-    results_df["Budget"] = results_df["Weight"] * budget
-    results_df["Impressions"] = (results_df["Budget"] / results_df["CPM"]) * 1000
-    results_df["Reach"] = results_df.apply(
-        lambda r: min(r["MAU"] * r["Device Factor"], r["Impressions"] / 2.5),
-        axis=1
-    )
-    results_df["Frequency"] = results_df.apply(
-        lambda r: r["Impressions"] / r["Reach"] if r["Reach"] > 0 else float("nan"),
-        axis=1
-    )
+    # Pure-Python arithmetic — no pandas vectorised ops, no numpy
+    for r in rows:
+        r["Weight"] /= total_weight
+        r["Budget"] = r["Weight"] * float(budget)
+        r["Impressions"] = (r["Budget"] / r["CPM"]) * 1000.0
+        reach_cap = r["MAU"] * r["Device Factor"]
+        reach_imp = r["Impressions"] / 2.5
+        r["Reach"] = min(reach_cap, reach_imp)
+        r["Frequency"] = r["Impressions"] / r["Reach"] if r["Reach"] > 0 else float("nan")
 
-    # =========================
-    # AGGREGATE (NO DUPES)
-    # =========================
-    aggregated_df = results_df.groupby("Publisher").agg({
-        "Budget": "sum",
-        "Impressions": "sum",
-        "Reach": "sum"
-    }).reset_index()
+    # Aggregate by publisher using plain dicts
+    pub_data = {}
+    for r in rows:
+        pub = r["Publisher"]
+        if pub not in pub_data:
+            pub_data[pub] = {"Budget": 0.0, "Impressions": 0.0, "Reach": 0.0}
+        pub_data[pub]["Budget"] += r["Budget"]
+        pub_data[pub]["Impressions"] += r["Impressions"]
+        pub_data[pub]["Reach"] += r["Reach"]
 
-    aggregated_df["Frequency"] = aggregated_df.apply(
-        lambda r: r["Impressions"] / r["Reach"] if r["Reach"] > 0 else float("nan"),
-        axis=1
-    )
-    aggregated_df["CPM"] = (aggregated_df["Budget"] / aggregated_df["Impressions"]) * 1000
+    agg_rows = []
+    for pub, data in pub_data.items():
+        freq = data["Impressions"] / data["Reach"] if data["Reach"] > 0 else float("nan")
+        cpm = (data["Budget"] / data["Impressions"]) * 1000.0 if data["Impressions"] > 0 else float("nan")
+        agg_rows.append({
+            "Publisher": pub,
+            "Budget": data["Budget"],
+            "Impressions": data["Impressions"],
+            "Reach": data["Reach"],
+            "Frequency": freq,
+            "CPM": cpm,
+        })
 
-    output = aggregated_df
+    output = pd.DataFrame(agg_rows)
+
+    # Scalar KPI totals — pure Python sums
+    total_reach = sum(r["Reach"] for r in agg_rows)
+    total_impressions = sum(r["Impressions"] for r in agg_rows)
+    total_budget_sum = sum(r["Budget"] for r in agg_rows)
+    blended_cpm_val = (total_budget_sum / total_impressions) * 1000.0 if total_impressions > 0 else 0.0
 
     # =========================
     # KPIs
@@ -517,14 +525,13 @@ if generate:
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        st.metric("Total Reach", f"{int(output['Reach'].sum()):,}")
+        st.metric("Total Reach", f"{int(total_reach):,}")
 
     with col2:
-        st.metric("Total Impressions", f"{int(output['Impressions'].sum()):,}")
+        st.metric("Total Impressions", f"{int(total_impressions):,}")
 
     with col3:
-        blended_cpm = (output["Budget"].sum() / output["Impressions"].sum()) * 1000
-        st.metric("Blended CPM", f"R{blended_cpm:,.0f}")
+        st.metric("Blended CPM", f"R{blended_cpm_val:,.0f}")
 
     # =========================
     # OUTPUT

@@ -218,6 +218,29 @@ div[data-testid="stWidgetLabel"] p {
     caret-color: #e8e8e8 !important;
 }
 
+/* === Dropdown popover (selectbox + multiselect open state) === */
+.stApp [data-baseweb="popover"],
+.stApp [data-baseweb="popover"] > div,
+.stApp [data-baseweb="popover"] ul {
+    background-color: #1a1a1a !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+}
+
+.stApp [data-baseweb="popover"] li {
+    color: #e8e8e8 !important;
+    background-color: transparent !important;
+}
+
+.stApp [data-baseweb="popover"] li[aria-selected="true"] {
+    background-color: rgba(47, 91, 255, 0.15) !important;
+}
+
+.stApp [data-baseweb="popover"] li:hover,
+.stApp [data-baseweb="popover"] li:focus {
+    background-color: rgba(255, 255, 255, 0.06) !important;
+    cursor: pointer !important;
+}
+
 /* === Bar chart container === */
 .stVegaLiteChart {
     background-color: var(--surface) !important;
